@@ -1,0 +1,2 @@
+setuptools==65.6.3
+webexteamssdk==1.6.1
