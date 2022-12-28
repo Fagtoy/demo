@@ -8,5 +8,6 @@ setup(
     version='1.0.1',
     python_requires='>=3.6',
     install_requires=requirements,
+    include_package_data=True,
     packages=find_packages(),
 )
