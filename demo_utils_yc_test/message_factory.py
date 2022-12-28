@@ -72,11 +72,6 @@ class MessageFactory:
             :param files        (list) list of paths to files that need to be attached with the message. Default None
         """
         msg += f'\n\nMessage sent from {self._me}'
-        if not self._is_production:
-            if files:
-                for f in files:
-                    os.remove(f)
-            return
         if markdown:
             self._api.messages.create(self._room.id, markdown=msg, files=files or None)
         else:
@@ -99,17 +94,12 @@ class MessageFactory:
             :param message      (str) message to send
             :param email_to     (list) list of emails to send the message to
         """
-        send_to = 'bodiakenko@onovalgmail.com'
+        send_to = ['bodiakenko@onovalgmail.com']
         newline_character = '<br>' if subtype == 'html' else '\n'
         msg = MIMEText(f'{message}{newline_character}{newline_character}Message sent from {self._me}', _subtype=subtype)
         msg['Subject'] = subject or 'Automatic generated message - RFC IETF'
         msg['From'] = self._email_from
         msg['To'] = ', '.join(send_to)
-
-        if not self._is_production:
-            print(f'You are in local env. Skip sending message to emails. The message was {msg}')
-            self._smtp.quit()
-            return
 
         self._smtp.sendmail(self._email_from, send_to, msg.as_string())
         if self._close_connection_after_message_sending:
