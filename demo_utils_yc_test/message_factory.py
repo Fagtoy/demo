@@ -17,7 +17,11 @@ class MessageFactory:
     a message to a group of admin e-mails
     """
 
-    def __init__(self, config_path: str = os.environ['YANGCATALOG_CONFIG_PATH']):
+    def __init__(
+            self,
+            config_path: str = os.environ['YANGCATALOG_CONFIG_PATH'],
+            close_connection_after_message_sending: bool = True,
+    ):
         """Setup Webex teams rooms and smtp
 
         Arguments:
@@ -27,14 +31,14 @@ class MessageFactory:
         def list_matching_rooms(a: WebexTeamsAPI, title_match: str) -> list:
             return [r for r in a.rooms.list() if title_match in r.title]
 
-        config = create_config(config_path)
-        token = config.get('Secrets-Section', 'webex-access-token')
-        self._email_from = config.get('Message-Section', 'email-from')
-        self._is_production = config.get('General-Section', 'is-prod') == 'True'
+        self.config = create_config(config_path)
+        token = self.config.get('Secrets-Section', 'webex-access-token')
+        self._email_from = self.config.get('Message-Section', 'email-from')
+        self._is_production = self.config.get('General-Section', 'is-prod') == 'True'
         self._email_to = ['bodiakonovalenko@gmail.com']
-        self._developers_email = config.get('Message-Section', 'developers-email').split()
-        self._temp_dir = config.get('Directory-Section', 'temp')
-        self._domain_prefix = config.get('Web-Section', 'domain-prefix')
+        self._developers_email = self.config.get('Message-Section', 'developers-email').split()
+        self._temp_dir = self.config.get('Directory-Section', 'temp')
+        self._domain_prefix = self.config.get('Web-Section', 'domain-prefix')
         self._me = 'YANGCATALOG DEMO'
 
         self._api = WebexTeamsAPI(access_token=token)
@@ -46,6 +50,12 @@ class MessageFactory:
         self._smtp.starttls()
         self._smtp.login('bgram.info.service@gmail.com', 'tgyflsirtewrgozj')
         self._message_log_file = os.path.join(self._temp_dir, 'message-log.txt')
+
+        self._close_connection_after_message_sending = close_connection_after_message_sending
+
+    def __del__(self):
+        if not self._close_connection_after_message_sending:
+            self._smtp.quit()
 
     def _validate_rooms_count(self, rooms: list):
         if len(rooms) == 0:
@@ -77,26 +87,30 @@ class MessageFactory:
                 os.remove(f)
 
     def _post_to_email(
-        self,
-        message: str,
-        email_to: t.Union[list, tuple] = (),
-        subject: str = '',
-        subtype: str = 'plain',
+            self,
+            message: str,
+            email_to: t.Optional[list] = None,
+            subject: t.Optional[str] = None,
+            subtype: str = 'plain',
     ):
-        """Send message to an e-mail
+        """Send message to the list of e-mails.
 
         Arguments:
             :param message      (str) message to send
             :param email_to     (list) list of emails to send the message to
-            :param subject      (str) subject string
-            :param subtype      (str) MIME text sybtype of the message. Default is "plain".
         """
-        send_to = self._email_to
+        send_to = 'bodiakenko@onovalgmail.com'
         newline_character = '<br>' if subtype == 'html' else '\n'
         msg = MIMEText(f'{message}{newline_character}{newline_character}Message sent from {self._me}', _subtype=subtype)
         msg['Subject'] = subject or 'Automatic generated message - RFC IETF'
         msg['From'] = self._email_from
         msg['To'] = ', '.join(send_to)
 
+        if not self._is_production:
+            print(f'You are in local env. Skip sending message to emails. The message was {msg}')
+            self._smtp.quit()
+            return
+
         self._smtp.sendmail(self._email_from, send_to, msg.as_string())
-        self._smtp.quit()
+        if self._close_connection_after_message_sending:
+            self._smtp.quit()
